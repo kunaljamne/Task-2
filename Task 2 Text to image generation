@@ -1,0 +1,95 @@
+/* step-by-Step Guide to Text-to-Image Generation
+1.Install Dependencies:
+bash
+Copy pip install tensorflow keras numpy
+
+2. Prepare Dataset:
+
+You'll need a dataset of images and corresponding text descriptions. One example is the Microsoft COCO dataset.
+
+3. Define the Model:
+
+For simplicity, we’ll define a basic GAN structure here.   
+
+4.  Training the GAN:
+
+Here’s a simple training loop. Note: Training GANs can be complex and typically requires more advanced techniques for stabilization. 
+
+This is a very basic implementation to get you started. In real-world applications, you would use more sophisticated models and techniques. For text-to-image, you'll need to encode the text using models like LSTMs or Transformers, and condition the GAN on this encoded representation.*/
+
+
+
+
+
+import tensorflow as tf
+from tensorflow.keras import layers
+
+def build_generator():
+    model = tf.keras.Sequential()
+    model.add(layers.Dense(256, input_dim=100))
+    model.add(layers.ReLU())
+    model.add(layers.BatchNormalization())
+    model.add(layers.Dense(512))
+    model.add(layers.ReLU())
+    model.add(layers.BatchNormalization())
+    model.add(layers.Dense(1024))
+    model.add(layers.ReLU())
+    model.add(layers.BatchNormalization())
+    model.add(layers.Dense(28 * 28 * 1, activation='tanh'))
+    model.add(layers.Reshape((28, 28, 1)))
+    return model
+
+def build_discriminator():
+    model = tf.keras.Sequential()
+    model.add(layers.Flatten(input_shape=(28, 28, 1)))
+    model.add(layers.Dense(1024))
+    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.Dense(512))
+    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.Dense(256))
+    model.add(layers.LeakyReLU(alpha=0.2))
+    model.add(layers.Dense(1, activation='sigmoid'))
+    return model
+
+def build_gan(generator, discriminator):
+    discriminator.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    discriminator.trainable = False
+
+    model = tf.keras.Sequential()
+    model.add(generator)
+    model.add(discriminator)
+    model.compile(loss='binary_crossentropy', optimizer='adam')
+    return model
+
+# Initialize models
+generator = build_generator()
+discriminator = build_discriminator()
+gan = build_gan(generator, discriminator)
+
+import numpy as np
+
+def train_gan(generator, discriminator, gan, epochs=10000, batch_size=128):
+    (x_train, _), (_, _) = tf.keras.datasets.mnist.load_data()
+    x_train = x_train / 127.5 - 1.0
+    x_train = np.expand_dims(x_train, axis=3)
+
+    valid = np.ones((batch_size, 1))
+    fake = np.zeros((batch_size, 1))
+
+    for epoch in range(epochs):
+        idx = np.random.randint(0, x_train.shape[0], batch_size)
+        imgs = x_train[idx]
+
+        noise = np.random.normal(0, 1, (batch_size, 100))
+        gen_imgs = generator.predict(noise)
+
+        d_loss_real = discriminator.train_on_batch(imgs, valid)
+        d_loss_fake = discriminator.train_on_batch(gen_imgs, fake)
+        d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+
+        g_loss = gan.train_on_batch(noise, valid)
+
+        if epoch % 1000 == 0:
+            print(f'{epoch} [D loss: {d_loss[0]} | D accuracy: {d_loss[1]}] [G loss: {g_loss}]')
+
+train_gan(generator, discriminator, gan)
